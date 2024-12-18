@@ -30,7 +30,8 @@ node server.js
 - To customize delay and port, you can create a `.env` file:
   ```dotenv
   PORT=3000
-  DELAY=5000
+  DELAY_MIN = 6000
+  DELAY_MAX = 10000
   ```
 
 #### **Endpoint: GET /status**
@@ -65,7 +66,7 @@ const VideoTranslation = require("./client.js");
   const client = new VideoTranslation(serverUrl, options);
 
   try {
-    const status = await client.getStatus();
+    const status = await client.waitForJobCompletion();
     console.log(`Get the job status: ${status}`);
   } catch (error) {
     console.error(`${error.message}`);

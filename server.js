@@ -1,30 +1,57 @@
 const express = require("express");
-const dotenv = require("dotenv");
 const JobStatus = require("./JobStatus.js");
 
-dotenv.config();
+module.exports = {
+  startServer: async function startServer(
+    port,
+    delayMin,
+    delayMax,
+    success,
+    serverError,
+    clientError
+  ) {
+    const app = express();
+    const delay = Math.random() * (delayMax - delayMin) + delayMin || 5000;
+    console.log("delay", delay);
 
-const app = express();
-const PORT = process.env.PORT || 3000;
-const DELAY = parseInt(process.env.DELAY, 10) || 5000;
+    let startTime = Date.now();
 
-let startTime = Date.now();
+    app.get("/status", (req, res) => {
+      if (clientError) {
+        res.status(400).json({ result: "Client error occurred." });
+        return;
+      }
 
-app.get("/status", (req, res) => {
-  const diff = Date.now() - startTime;
+      if (serverError) {
+        res.status(500).json({ result: "Server error occurred." });
+        return;
+      }
 
-  if (diff < DELAY) {
-    return res.json({ result: JobStatus.PENDING });
-  }
+      const diff = Date.now() - startTime;
+      console.log("diff", diff);
 
-  // Randomly simulate success or error, e.g. 80% chance of success
-  const isSuccess = Math.random() > 0.2;
-  const status = isSuccess ? JobStatus.COMPLETED : JobStatus.ERROR;
+      if (diff < delay) {
+        return res.json({ result: JobStatus.PENDING });
+      }
 
-  res.json({ result: status });
-});
+      const status = success ? JobStatus.COMPLETED : JobStatus.ERROR;
 
-app.listen(PORT, () => {
-  console.log(`Server is running on http://localhost:${PORT}`);
-  console.log(`Configured delay: ${DELAY} ms`);
-});
+      res.json({ result: status });
+    });
+
+    return new Promise((resolve) => {
+      const server = app.listen(port, () => {
+        console.log(`Server is running on http://localhost:${port}`);
+        console.log(`Configured delay: ${delay} ms`);
+        resolve(server);
+      });
+    });
+  },
+
+  stopServer: async function stopServer(server) {
+    return new Promise((resolve) => {
+      console.log(`Server is closed.`);
+      server.close(resolve);
+    });
+  },
+};

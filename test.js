@@ -1,73 +1,81 @@
-const nock = require("nock");
 const VideoTranslation = require("./client");
+const { startServer, stopServer } = require("./server");
 const JobStatus = require("./JobStatus");
 
 describe("VideoTranslation", () => {
-  const serverUrl = "http://localhost:3000";
-  const maxRetries = 3;
+  const maxRetries = 4;
   const initialDelay = 100;
-  const maxDelay = 500;
-
-  let videoTranslation;
-
-  beforeEach(() => {
-    videoTranslation = new VideoTranslation(serverUrl, {
-      maxRetries,
-      initialDelay,
-      maxDelay,
-    });
-  });
-
-  afterEach(() => {
-    nock.cleanAll();
-  });
 
   it("should return COMPLETED if job status is completed", async () => {
-    nock(serverUrl).get("/status").reply(200, { result: JobStatus.COMPLETED });
-
-    const status = await videoTranslation.getStatus();
+    const server = await startServer(3000, 200, 400, true, false, false);
+    const serverUrl = "http://localhost:3000";
+    const videoTranslation = new VideoTranslation(serverUrl, {
+      maxRetries,
+      initialDelay,
+    });
+    const status = await videoTranslation.waitForJobCompletion();
     expect(status).toBe(JobStatus.COMPLETED);
+
+    await stopServer(server);
   });
 
   it("should return ERROR if job status is error", async () => {
-    nock(serverUrl).get("/status").reply(200, { result: JobStatus.ERROR });
+    const server = await startServer(4000, 200, 400, false, false, false);
+    const serverUrl = "http://localhost:4000";
+    const videoTranslation = new VideoTranslation(serverUrl, {
+      maxRetries,
+      initialDelay,
+    });
 
-    const status = await videoTranslation.getStatus();
-    expect(status).toBe(JobStatus.ERROR);
-  });
+    await expect(videoTranslation.waitForJobCompletion()).rejects.toThrow(
+      "Job encountered an error."
+    );
 
-  it("should retry and succeed when status changes to COMPLETED", async () => {
-    let callCount = 0;
-
-    nock(serverUrl)
-      .get("/status")
-      .times(2)
-      .reply(() => {
-        callCount++;
-        if (callCount === 1) {
-          return [200, { result: JobStatus.PENDING }];
-        }
-        return [200, { result: JobStatus.COMPLETED }];
-      });
-
-    const status = await videoTranslation.getStatus();
-    expect(status).toBe(JobStatus.COMPLETED);
+    await stopServer(server);
   });
 
   it("should throw an error after max retries", async () => {
-    nock(serverUrl)
-      .get("/status")
-      .times(maxRetries)
-      .reply(200, { result: JobStatus.PENDING });
+    const server = await startServer(6000, 2000, 3000, false, false, false);
+    const serverUrl = "http://localhost:6000";
+    const videoTranslation = new VideoTranslation(serverUrl, {
+      maxRetries,
+      initialDelay,
+    });
 
-    await expect(videoTranslation.getStatus()).rejects.toThrow(
+    await expect(videoTranslation.waitForJobCompletion()).rejects.toThrow(
       "Max retries reached."
     );
+
+    await stopServer(server);
   });
 
-  it("should throw an error if the server returns a network error", async () => {
-    nock(serverUrl).get("/status").replyWithError("Network error");
+  it("should retry if server return 500", async () => {
+    const server = await startServer(2000, 200, 400, false, true, false);
+    const serverUrl = "http://localhost:2000";
+    const videoTranslation = new VideoTranslation(serverUrl, {
+      maxRetries,
+      initialDelay,
+    });
 
-    await expect(videoTranslation.getStatus()).rejects.toThrow("Network error");
+    await expect(videoTranslation.waitForJobCompletion()).rejects.toThrow(
+      "Max retries reached."
+    );
+
+    await stopServer(server);
+  });
+
+  it("should throw error if server return 400", async () => {
+    const server = await startServer(2100, 200, 400, false, false, true);
+    const serverUrl = "http://localhost:2100";
+    const videoTranslation = new VideoTranslation(serverUrl, {
+      maxRetries,
+      initialDelay,
+    });
+
+    await expect(videoTranslation.waitForJobCompletion()).rejects.toThrow(
+      "Request failed with status code 400"
+    );
+
+    await stopServer(server);
   });
 });
