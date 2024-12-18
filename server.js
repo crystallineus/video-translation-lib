@@ -1,6 +1,6 @@
-import express from "express";
-import dotenv from "dotenv";
-import { JobStatus } from "./JobStatus.js";
+const express = require("express");
+const dotenv = require("dotenv");
+const JobStatus = require("./JobStatus.js");
 
 dotenv.config();
 
