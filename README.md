@@ -6,9 +6,9 @@ This library provides a simple interface to check the status of a video translat
 
 This repository contains:
 
-1. **`server.js`**: A simulated server backend that returns the job status (`PENDING`, `COMPLETED`, `ERROR`).
-2. **`client.js`**: A client library to query the server and manage retries.
-3. **`test.js`**: Unit tests for the client library using a mock server.
+1. **`server.js`**: A simulated server backend that returns the job status (`pending`, `completed`, `error`).
+2. **`client.js`**: A client library for interacting with the server.
+3. **`test.js`**: Integration tests for the client library and server.
 
 ## **Prerequisites**
 
@@ -18,37 +18,10 @@ This repository contains:
    npm install
    ```
 
-## **Server Setup**
-
-The server simulates a video translation backend. Start the server using:
-
-```bash
-node server.js
-```
-
-- The server listens on `http://localhost:3000` by default.
-- To customize delay and port, you can create a `.env` file:
-  ```dotenv
-  PORT=3000
-  DELAY_MIN = 6000
-  DELAY_MAX = 10000
-  ```
-
-#### **Endpoint: GET /status**
-
-The server returns the job status:
-
-- **Response Format**:
-  ```json
-  {
-    "result": "PENDING" | "COMPLETED" | "ERROR"
-  }
-  ```
-- The server initially responds with `"PENDING"` until the configured delay is reached. After that, it randomly responds with `"COMPLETED"` (80%) or `"ERROR"` (20%).
-
 ## **Client Library**
 
-The client library (`client.js`) allows you to query the server and get the final job status.
+The client library (`client.js`) provides a high level API for interacting
+with the video translation service.
 
 #### **Example Usage**
 
@@ -56,51 +29,63 @@ The client library (`client.js`) allows you to query the server and get the fina
 const VideoTranslation = require("./client.js");
 
 (async () => {
-  const serverUrl = "http://localhost:3000";
-  const options = {
-    maxRetries: 5,
-    initialDelay: 500,
-    maxDelay: 5000,
-  };
-
-  const client = new VideoTranslation(serverUrl, options);
+  // First, start by instantiating the VideoTranslation class.
+  // This object provides all the methods for interacting with the video translation service.
+  const client = new VideoTranslation();
 
   try {
-    const status = await client.waitForJobCompletion();
-    console.log(`Get the job status: ${status}`);
+    // After starting your translation job, you can
+    // call waitForJobCompletion() to wait for it to complete.
+    await client.waitForJobCompletion();
+    console.log(`Job is complete, do remaining work.`);
   } catch (error) {
+    // If the job fails, takes too long, or any other issue occurs, the method will throw an error.
     console.error(`${error.message}`);
   }
 })();
 ```
 
-#### **Configuration Options**
+#### Advanced Usage
+
+```javascript
+const VideoTranslation = require("./client.js");
+
+async () => {
+  // You can optionally provide a custom server URL when instantiating
+  // the VideoTranslation class.
+  const serverUrl = "http://localhost:3001";
+  const client = new VideoTranslation(serverUrl);
+
+  // Most users should be fine with the defaults for waitForJobCompletion,
+  // but you can optionally customize the retry policy.
+  const options = {
+    maxRetries: 50,
+    initialDelay: 1000,
+  };
+  await client.waitForJobCompletion(options);
+};
+```
+
+#### **waitForJobCompletion options**
 
 | **Option**     | **Type** | **Default** | **Description**                            |
 | -------------- | -------- | ----------- | ------------------------------------------ |
 | `maxRetries`   | Number   | `5`         | Maximum number of retries for the request. |
 | `initialDelay` | Number   | `500`       | Initial delay between retries (in ms).     |
-| `maxDelay`     | Number   | `5000`      | Maximum delay between retries (in ms).     |
-
-#### **Return Values**
-
-- **`PENDING`**: The job is still working.
-- **`COMPLETED`**: The job completed successfully.
-- **`ERROR`**: The job encountered an error.
-- Throws an error if:
-  - The server fails to respond.
-  - Maximum retries are exceeded.
 
 ## **Testing**
 
-The repository includes unit tests (`test.js`) for the client library using Jest and Nock. The tests verify:
-
-1. Successful retrieval of job status.
-2. Proper handling of retry logic.
-3. Error handling for network/server failures.
+The repository includes integration tests (`test.js`) for the client library and server using Jest.
 
 Run tests using:
 
 ```bash
 npm test
 ```
+
+## Assumptions
+
+In the real world, there would probably be an endpoint
+for starting the translation job, and the status endpoint would take a job ID. For this project we have simplified it.
+
+The default retry policy for waitForCompletion should be based on how long jobs typically take. I have picked arbitrary numbers for this project.

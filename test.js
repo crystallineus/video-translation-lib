@@ -3,78 +3,98 @@ const { startServer, stopServer } = require("./server");
 const JobStatus = require("./JobStatus");
 
 describe("VideoTranslation", () => {
-  const maxRetries = 4;
-  const initialDelay = 100;
+  const waitForJobCompletionOpts = {
+    maxRetries: 4,
+    initialDelay: 100,
+  };
 
-  it("should return COMPLETED if job status is completed", async () => {
-    const server = await startServer(3000, 200, 400, true, false, false);
-    const serverUrl = "http://localhost:3000";
-    const videoTranslation = new VideoTranslation(serverUrl, {
-      maxRetries,
-      initialDelay,
+  it("should return done if job status is completed", async () => {
+    const server = await startServer(3000, {
+      delayMin: 200,
+      delayMax: 400,
+      success: true,
+      serverError: false,
+      clientError: false,
     });
-    const status = await videoTranslation.waitForJobCompletion();
-    expect(status).toBe(JobStatus.COMPLETED);
+    const serverUrl = "http://localhost:3000";
+    const videoTranslation = new VideoTranslation(serverUrl);
+
+    const got = await videoTranslation.waitForJobCompletion(
+      waitForJobCompletionOpts
+    );
+    expect(got).toBe(JobStatus.COMPLETED);
 
     await stopServer(server);
   });
 
-  it("should return ERROR if job status is error", async () => {
-    const server = await startServer(4000, 200, 400, false, false, false);
-    const serverUrl = "http://localhost:4000";
-    const videoTranslation = new VideoTranslation(serverUrl, {
-      maxRetries,
-      initialDelay,
+  it("should throw an error if job status is error", async () => {
+    const server = await startServer(4000, {
+      delayMin: 200,
+      delayMax: 400,
+      success: false,
+      serverError: false,
+      clientError: false,
     });
+    const serverUrl = "http://localhost:4000";
+    const videoTranslation = new VideoTranslation(serverUrl);
 
-    await expect(videoTranslation.waitForJobCompletion()).rejects.toThrow(
-      "Job encountered an error."
-    );
+    await expect(
+      videoTranslation.waitForJobCompletion(waitForJobCompletionOpts)
+    ).rejects.toThrow("Job failed");
 
     await stopServer(server);
   });
 
   it("should throw an error after max retries", async () => {
-    const server = await startServer(6000, 2000, 3000, false, false, false);
-    const serverUrl = "http://localhost:6000";
-    const videoTranslation = new VideoTranslation(serverUrl, {
-      maxRetries,
-      initialDelay,
+    const server = await startServer(6000, {
+      delayMin: 2000,
+      delayMax: 3000,
+      success: false,
+      serverError: false,
+      clientError: false,
     });
+    const serverUrl = "http://localhost:6000";
+    const videoTranslation = new VideoTranslation(serverUrl);
 
-    await expect(videoTranslation.waitForJobCompletion()).rejects.toThrow(
-      "Max retries reached."
-    );
+    await expect(
+      videoTranslation.waitForJobCompletion(waitForJobCompletionOpts)
+    ).rejects.toThrow("Max retries reached.");
 
     await stopServer(server);
   });
 
-  it("should retry if server return 500", async () => {
-    const server = await startServer(2000, 200, 400, false, true, false);
-    const serverUrl = "http://localhost:2000";
-    const videoTranslation = new VideoTranslation(serverUrl, {
-      maxRetries,
-      initialDelay,
+  it("should keep trying if server returns 500", async () => {
+    const server = await startServer(2000, {
+      delayMin: 200,
+      delayMax: 400,
+      success: false,
+      serverError: true,
+      clientError: false,
     });
+    const serverUrl = "http://localhost:2000";
+    const videoTranslation = new VideoTranslation(serverUrl);
 
-    await expect(videoTranslation.waitForJobCompletion()).rejects.toThrow(
-      "Max retries reached."
-    );
+    await expect(
+      videoTranslation.waitForJobCompletion(waitForJobCompletionOpts)
+    ).rejects.toThrow("Max retries reached.");
 
     await stopServer(server);
   });
 
   it("should throw error if server return 400", async () => {
-    const server = await startServer(2100, 200, 400, false, false, true);
-    const serverUrl = "http://localhost:2100";
-    const videoTranslation = new VideoTranslation(serverUrl, {
-      maxRetries,
-      initialDelay,
+    const server = await startServer(2100, {
+      delayMin: 200,
+      delayMax: 400,
+      success: false,
+      serverError: false,
+      clientError: true,
     });
+    const serverUrl = "http://localhost:2100";
+    const videoTranslation = new VideoTranslation(serverUrl);
 
-    await expect(videoTranslation.waitForJobCompletion()).rejects.toThrow(
-      "Request failed with status code 400"
-    );
+    await expect(
+      videoTranslation.waitForJobCompletion(waitForJobCompletionOpts)
+    ).rejects.toThrow("Request failed with status code 400");
 
     await stopServer(server);
   });
